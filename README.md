@@ -2,7 +2,7 @@
 
 ## Overview
 
-A C++ template class `Fraction<T>` for working with rational numbers using signed integral types. Every fraction automatically simplifies to lowest terms via GCD and normalizes sign to the numerator. Supports full arithmetic (`+`, `-`, `*`, `/`), comparisons, conversions to double/int/string, and seamless scalar mixing (e.g., `Fraction(1,2) + 3`).
+A C++17 template class `Fraction<T>` for working with rational numbers using signed integral types. Every fraction automatically simplifies to lowest terms via GCD and normalizes sign to the numerator. Supports full arithmetic (`+`, `-`, `*`, `/`), comparisons, conversions to double/int/string, and seamless scalar mixing (e.g., `Fraction(1,2) + 3`).
 
 ## Features
 
