@@ -44,4 +44,4 @@ g++ -fdiagnostics-color=always -g fractionTests.cpp -o fractionTests
 
 ---
 
-I created the Fraction class myself. Test cases generated using Claude Sonnet 4.6. All 157 test cases passed.
+I created the Fraction class myself; test cases generated using Claude Sonnet 4.6. All 115 test cases passed.

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 #include <numeric>
+#include <sstream>
 
 template < typename T, typename = std::enable_if_t<std::is_integral_v<T> && std::is_signed_v<T>> >
 struct Fraction {
