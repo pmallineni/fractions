@@ -296,6 +296,10 @@ static void test_tostring_and_stream() {
     std::ostringstream oss2;
     oss2 << c;
     check(c.toString() == oss2.str(), "toString == operator<< output");
+
+    std::ostringstream oss3;
+    oss3 << F(8, 1);
+    check(oss3.str() == "8", "operator<< produces integer 8 when fraction is integer");
 }
 
 static void test_conversions() {
@@ -309,12 +313,24 @@ static void test_conversions() {
     check(F(1, 2).toInt() == 0,  "toInt 1/2 = 0 (truncate)");
     check(F(-7, 2).toInt() == -3, "toInt -7/2 = -3 (truncate)");
     check(F(4, 2).toInt() == 2,  "toInt 4/2 = 2 (exact)");
+
+    // static_cast conversions
+    check(static_cast<int>(F(12, 3)) == 4, "static_cast<int>(12/3) = 4 (exact)");
+    check(static_cast<short>(F(-9/4)) == short {-2}, "static_cast<short>(-9/4) = short {-2} (truncate)");
+    
+    // Convertability
+    check(!std::is_constructible_v<float, F>, "Non-integral types not constructible from Fraction");
+    check(!std::is_constructible_v<uint, F>, "Unsigned integral types not constructible from Fraction");
+    check(std::is_constructible_v<long long, F>,
+    "Signed integral types (long long) can be constructed from Fraction");
+    check(std::is_constructible_v<int, F>, "Integral types (int) can be constructed from Fraction");
 }
 
 static void test_algebraic_identities() {
     F a(3, 7);
     F b(5, 11);
     F c(2, 9);
+    F d(23,1);
 
     // Commutativity of + and *
     check(a + b == b + a, "addition commutative");
@@ -335,6 +351,9 @@ static void test_algebraic_identities() {
 
     // Subtraction as addition of negation
     check(a - b == a + (-b), "subtraction is addition of negation");
+
+    // Fraction is integer when denominator is one
+    check(d.isInteger(), "23/1 is an integer");
 }
 
 static void test_long_long() {
@@ -342,6 +361,10 @@ static void test_long_long() {
     FL b(1LL, 6LL);
     check(a + b == FL(1LL, 2LL), "long long: 1/3 + 1/6 = 1/2");
     check(a * b == FL(1LL, 18LL), "long long: 1/3 * 1/6 = 1/18");
+    // check type after static_cast
+
+    check(static_cast<long long>(FL(2839473983389LL, 41LL)) == 69255463009,
+    "static_cast<long long>(a/b) works for large numbers");
 
     // Large values that would overflow int
     FL big(1'000'000'000LL, 999'999'999LL);

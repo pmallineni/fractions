@@ -4,7 +4,10 @@
 #include <numeric>
 #include <sstream>
 
-template < typename T, typename = std::enable_if_t<std::is_integral_v<T> && std::is_signed_v<T>> >
+template < 
+    typename T,
+    typename = std::enable_if_t<std::is_integral_v<T> && std::is_signed_v<T>>
+>
 struct Fraction {
     private: 
         T _numerator;
@@ -85,12 +88,25 @@ struct Fraction {
             return static_cast<double> (_numerator) / _denominator;
         }
 
-        T toInt() const {
+        template < 
+            typename U,
+            typename = std::enable_if_t<std::is_integral_v<U> && std::is_signed_v<U>>
+        >
+        explicit operator U() const {
             return _numerator / _denominator;
         }
+
+        T toInt() const {
+            return static_cast<T> (*this);
+        }
+
+        bool const isInteger() const noexcept {return _denominator == 1;}
         
         friend std::ostream& operator<< (std::ostream& out, const Fraction& frac) {
-            out << frac.numerator() << '/' << frac.denominator();
+            if (frac.isInteger()) 
+                out << frac.numerator();
+            else
+                out << frac.numerator() << '/' << frac.denominator();
             return out;
         }
 
