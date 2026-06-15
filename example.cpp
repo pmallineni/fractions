@@ -17,6 +17,9 @@ int main() {
     
     // Conversion
     std::cout << "As decimal: " << f1.toDouble() << std::endl;
+    using C = checked_arith_detail::CheckedInt<int>;
+
+    std::cout << static_cast<int> (checked_arith_detail::floor_div(C(-1), C(3))) << std::endl;
     
     return 0;
 }

@@ -4,7 +4,7 @@
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
-
+#include <cassert>
 namespace checked_arith_detail {
 
     // ---- Helper: is T an unbounded (arbitrary-precision) type? ----
@@ -156,12 +156,12 @@ namespace checked_arith_detail {
         T value() const { return value_; }
         explicit operator T() const { return value_; } // explicit: forces deliberate unwrap
 
-        CheckedInt operator+(const CheckedInt& o) const { return CheckedInt(checked_add(value_, o.value_)); }
-        CheckedInt operator-(const CheckedInt& o) const { return CheckedInt(checked_sub(value_, o.value_)); }
-        CheckedInt operator*(const CheckedInt& o) const { return CheckedInt(checked_mul(value_, o.value_)); }
-        CheckedInt operator/(const CheckedInt& o) const { return CheckedInt(checked_div(value_, o.value_)); }
-        CheckedInt operator%(const CheckedInt& o) const { return CheckedInt(checked_mod(value_, o.value_)); }
-        CheckedInt operator-() const                    { return CheckedInt(checked_negate(value_)); }
+        CheckedInt operator+(const CheckedInt& o) const { return CheckedInt(checked_add(value_, o.value_));       }
+        CheckedInt operator-(const CheckedInt& o) const { return CheckedInt(checked_sub(value_, o.value_));       }
+        CheckedInt operator*(const CheckedInt& o) const { return CheckedInt(checked_mul(value_, o.value_));       }
+        CheckedInt operator/(const CheckedInt& o) const { return CheckedInt(checked_div(value_, o.value_));       }
+        CheckedInt operator%(const CheckedInt& o) const { return CheckedInt(checked_mod(value_, o.value_));       }
+        CheckedInt operator-()                    const { return CheckedInt(checked_negate(value_));              }   
 
         // Comparisons carry no overflow risk - forward directly
         bool operator==(const CheckedInt& o) const { return value_ == o.value_; }
@@ -180,13 +180,12 @@ namespace checked_arith_detail {
     // but checked_mod/checked_div still guard the abs(min)/-1 edge case
     template <typename T>
     CheckedInt<T> int_gcd(CheckedInt<T> a, CheckedInt<T> b) {
-        if (a < CheckedInt<T>(T(0))) a = -a;
-        if (b < CheckedInt<T>(T(0))) b = -b;
         while (b != CheckedInt<T>(T(0))) {
             CheckedInt<T> t = b;
             b = a % b;
             a = t;
         }
+        if (a < CheckedInt<T>(T(0))) a = -a;
         return a;
     }
 
@@ -194,6 +193,17 @@ namespace checked_arith_detail {
     CheckedInt<T> int_lcm(CheckedInt<T> a, CheckedInt<T> b) {
         return (a / int_gcd(a, b)) * b;
     }
+    
+    template <typename T>
+    CheckedInt<T> floor_div(CheckedInt<T> a, CheckedInt<T> b) {
+        CheckedInt<T> res = a / b;
+        CheckedInt<T> rem = a % b;
+        // Correct the result if it rounds toward zero instead of down
+        if (rem != 0 && ((a < 0) ^ (b < 0))) {
+            res = res - 1;
+        }
+        return res;
+}
 
 }
 
@@ -437,6 +447,40 @@ struct Fraction {
         }
 
         bool operator<(const Fraction& other) const {
+            // TODO
+            // Try catch loop expensive. Perhaps create a check_no_overflow function instead
+            // and if statement later
+            try {
+                return cross_mul_algorithm_operator_lesser(other);
+            }
+            catch (const std::overflow_error& e) {
+                return euclidean_algorithm_operator_lesser(other);
+
+            }
+        }
+
+        bool operator>(const Fraction& other) const {
+            // TODO
+            // Try catch loop expensive. Perhaps create a check_no_overflow function instead
+            // and if statement later
+            try {
+                return cross_mul_algorithm_operator_greater(other);
+            }
+            catch (const std::overflow_error& e) {
+                return euclidean_algorithm_operator_greater(other);
+
+            }        
+        }
+
+        bool cross_mul_algorithm_operator_greater(const Fraction& other) const {
+            C ad{_denominator}, bd{other.denominator()};
+            C denom_gcd = checked_arith_detail::int_gcd(ad, bd);
+            C lhs = C(_numerator) * (bd / denom_gcd);
+            C rhs = C(other.numerator()) * (ad / denom_gcd);
+            return lhs > rhs;
+        }
+
+        bool cross_mul_algorithm_operator_lesser(const Fraction& other) const {
             C ad{_denominator}, bd{other.denominator()};
             C denom_gcd = checked_arith_detail::int_gcd(ad, bd);
             C lhs = C(_numerator) * (bd / denom_gcd);
@@ -444,12 +488,78 @@ struct Fraction {
             return lhs < rhs;
         }
 
-        bool operator>(const Fraction& other) const {
-            C ad{_denominator}, bd{other.denominator()};
-            C denom_gcd = checked_arith_detail::int_gcd(ad, bd);
-            C lhs = C(_numerator) * (bd / denom_gcd);
-            C rhs = C(other.numerator()) * (ad / denom_gcd);
-            return lhs > rhs;
+        bool euclidean_algorithm_operator_greater(const Fraction& other) const {
+            std::size_t i = 0;
+            C a_1 {_numerator}, a_2 {other.numerator()};
+            C c_1 {_denominator}, c_2 {other.denominator()};
+            C b_1 {floor_div(a_1, c_1)}, b_2 {floor_div(a_2, c_2)};
+            C d_1 {a_1 - b_1 * c_1}, d_2 {a_2 - b_2 * c_2};
+            
+            while (b_1 == b_2 && !(d_1 == 0 || d_2 == 0)) {
+                i++;
+                a_1 = c_1;
+                a_2 = c_2;
+                c_1 = d_1;
+                c_2 = d_2;
+                b_1 = floor_div(a_1, c_1);
+                b_2 = floor_div(a_2, c_2);
+                d_1 = a_1 - b_1 * c_1;
+                d_2 = a_2 - b_2 * c_2;
+            }
+            if (b_1 != b_2) {
+                if (i % 2 == 0)
+                    return b_1 > b_2;
+                else 
+                    return b_1 < b_2;
+            }
+            if (d_1 == 0 && d_2 == 0)
+                return false;
+            if (d_1 == 0) {
+                i++;
+                return i % 2 == 0;
+            }
+            else {
+                // d_2 == 0 here
+                assert(d_2 == 0 && "should always be true");
+                return i % 2 != 0;
+            }
+        }
+
+        bool euclidean_algorithm_operator_lesser(const Fraction& other) const {
+            std::size_t i = 0;
+            C a_1 {_numerator}, a_2 {other.numerator()};
+            C c_1 {_denominator}, c_2 {other.denominator()};
+            C b_1 {floor_div(a_1, c_1)}, b_2 {floor_div(a_2, c_2)};
+            C d_1 {a_1 - b_1 * c_1}, d_2 {a_2 - b_2 * c_2};
+            
+            while (b_1 == b_2 && !(d_1 == 0 || d_2 == 0)) {
+                i++;
+                a_1 = c_1;
+                a_2 = c_2;
+                c_1 = d_1;
+                c_2 = d_2;
+                b_1 = floor_div(a_1, c_1);
+                b_2 = floor_div(a_2, c_2);
+                d_1 = a_1 - b_1 * c_1;
+                d_2 = a_2 - b_2 * c_2;
+            }
+            if (b_1 != b_2) {
+                if (i % 2 == 0)
+                    return b_1 < b_2;
+                else 
+                    return b_1 > b_2;
+            }
+            if (d_1 == 0 && d_2 == 0)
+                return false;
+            if (d_1 == 0) {
+                i++;
+                return i % 2 != 0;
+            }
+            else {
+                // d_2 == 0 here
+                assert(d_2 == 0 && "should always be true");
+                return i % 2 == 0;
+            }
         }
 
         bool operator>=(const Fraction& other) const {
@@ -462,8 +572,15 @@ struct Fraction {
         
         bool operator==(const T other) const { return isInteger() && _numerator == other; }
         bool operator!=(const T other) const { return !operator==(other); }
-        bool operator< (const T other) const { return _numerator <  static_cast<T>(C(other) * C(_denominator)); }
-        bool operator> (const T other) const { return _numerator >  static_cast<T>(C(other) * C(_denominator)); }
+        bool operator< (const T other) const { 
+            
+            try {return _numerator <  static_cast<T>(C(other) * C(_denominator)); }
+            catch (const std::overflow_error& e) {return euclidean_algorithm_operator_lesser(Fraction(other));}
+        }
+        bool operator> (const T other) const { 
+            try{return _numerator >  static_cast<T>(C(other) * C(_denominator)); }
+            catch (const std::overflow_error& e) {return euclidean_algorithm_operator_greater(Fraction(other));}
+        }
         bool operator<=(const T other) const { return *this == other || *this < other; }
         bool operator>=(const T other) const { return *this == other || *this > other; }
 
