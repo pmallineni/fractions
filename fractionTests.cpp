@@ -398,6 +398,247 @@ static void test_edge_cases() {
     check(y / y == F(1), "x / x = 1 for arbitrary fraction");
 }
 
+template<typename T>
+static void test_fraction_overflow_construction() {
+    using F = Fraction<T>;
+
+    constexpr T min = std::numeric_limits<T>::min();
+
+    // denominator normalization requires negating denominator
+    check_throws<std::overflow_error>(
+        [] { F(min, -1); },
+        std::string(typeid(T).name()) + ": construct(min,-1)"
+    );
+
+    // both negative also requires negating min
+    check_throws<std::overflow_error>(
+        [] { F(min, min); },
+        std::string(typeid(T).name()) + ": construct(min,min)"
+    );
+}
+
+template<typename T>
+static void test_fraction_overflow_unary_negation() {
+    using F = Fraction<T>;
+
+    constexpr T min = std::numeric_limits<T>::min();
+
+    check_throws<std::overflow_error>(
+        [] { (void)(-F(min)); },
+        std::string(typeid(T).name()) + ": unary minus overflow"
+    );
+}
+
+template<typename T>
+static void test_fraction_overflow_addition() {
+    using F = Fraction<T>;
+
+    constexpr T max = std::numeric_limits<T>::max();
+
+    check_throws<std::overflow_error>(
+        [] {
+            F a(max);
+            F b(1);
+            (void)(a + b);
+        },
+        std::string(typeid(T).name()) + ": max + 1"
+    );
+
+    check_throws<std::overflow_error>(
+        [] {
+            F a(max, 2);
+            F b(max, 2);
+            (void)(a + b);
+        },
+        std::string(typeid(T).name()) + ": numerator overflow during fraction add"
+    );
+}
+
+template<typename T>
+static void test_fraction_overflow_subtraction() {
+    using F = Fraction<T>;
+
+    constexpr T min = std::numeric_limits<T>::min();
+
+    check_throws<std::overflow_error>(
+        [] {
+            F a(min);
+            F b(1);
+            (void)(a - b);
+        },
+        std::string(typeid(T).name()) + ": min - 1"
+    );
+}
+
+template<typename T>
+static void test_fraction_overflow_multiplication() {
+    using F = Fraction<T>;
+
+    constexpr T max = std::numeric_limits<T>::max();
+
+    check_throws<std::overflow_error>(
+        [] {
+            F a(max);
+            F b(2);
+            (void)(a * b);
+        },
+        std::string(typeid(T).name()) + ": max * 2"
+    );
+
+    check_throws<std::overflow_error>(
+        [] {
+            F a(max, 1);
+            F b(max, 1);
+            (void)(a * b);
+        },
+        std::string(typeid(T).name()) + ": max * max"
+    );
+}
+
+template<typename T>
+static void test_fraction_overflow_division() {
+    using F = Fraction<T>;
+
+    constexpr T min = std::numeric_limits<T>::min();
+
+    check_throws<std::overflow_error>(
+        [] {
+            F a(min);
+            F b(-1);
+            (void)(a / b);
+        },
+        std::string(typeid(T).name()) + ": min / -1"
+    );
+}
+
+template<typename T>
+static void test_fraction_overflow_comparisons() {
+    using F = Fraction<T>;
+
+    constexpr T max = std::numeric_limits<T>::max();
+
+    check_nothrow(
+        [] {
+            F a(1, max);
+            (void)(a < 2);
+        },
+        std::string(typeid(T).name()) + ": comparison overflow"
+    );
+}
+
+static void test_all_signed_integer_overflows() {
+    test_fraction_overflow_construction<signed char>();
+    test_fraction_overflow_unary_negation<signed char>();
+    test_fraction_overflow_addition<signed char>();
+    test_fraction_overflow_subtraction<signed char>();
+    test_fraction_overflow_multiplication<signed char>();
+    test_fraction_overflow_division<signed char>();
+    test_fraction_overflow_comparisons<signed char>();
+
+    test_fraction_overflow_construction<short>();
+    test_fraction_overflow_unary_negation<short>();
+    test_fraction_overflow_addition<short>();
+    test_fraction_overflow_subtraction<short>();
+    test_fraction_overflow_multiplication<short>();
+    test_fraction_overflow_division<short>();
+    test_fraction_overflow_comparisons<short>();
+
+    test_fraction_overflow_construction<int>();
+    test_fraction_overflow_unary_negation<int>();
+    test_fraction_overflow_addition<int>();
+    test_fraction_overflow_subtraction<int>();
+    test_fraction_overflow_multiplication<int>();
+    test_fraction_overflow_division<int>();
+    test_fraction_overflow_comparisons<int>();
+
+    test_fraction_overflow_construction<long>();
+    test_fraction_overflow_unary_negation<long>();
+    test_fraction_overflow_addition<long>();
+    test_fraction_overflow_subtraction<long>();
+    test_fraction_overflow_multiplication<long>();
+    test_fraction_overflow_division<long>();
+    test_fraction_overflow_comparisons<long>();
+
+    test_fraction_overflow_construction<long long>();
+    test_fraction_overflow_unary_negation<long long>();
+    test_fraction_overflow_addition<long long>();
+    test_fraction_overflow_subtraction<long long>();
+    test_fraction_overflow_multiplication<long long>();
+    test_fraction_overflow_division<long long>();
+    test_fraction_overflow_comparisons<long long>();
+}
+
+
+static void test_int128_overflow() {
+#if defined(__SIZEOF_INT128__)
+    using I128 = __int128;
+    using F = Fraction<I128>;
+
+    constexpr I128 max =
+        (((I128)1 << 126) - 1) * 2 + 1;
+
+    check_throws<std::overflow_error>(
+        [&] {
+            F a(max);
+            F b(1);
+            (void)(a + b);
+        },
+        "__int128 max + 1"
+    );
+
+    check_throws<std::overflow_error>(
+        [&] {
+            F a(max);
+            F b(2);
+            (void)(a * b);
+        },
+        "__int128 max * 2"
+    );
+#else
+    std::cerr 
+        << "Signed integral type __int128 unavailable; "
+        << "Skipping __int128 tests\n";
+#endif
+
+}
+
+
+static void test_boost_multiprecision_no_overflow() {
+
+#if __has_include(<boost/multiprecision/cpp_int.hpp>)
+
+    #include <boost/multiprecision/cpp_int.hpp>
+
+    using boost::multiprecision::cpp_int;
+
+    template<>
+    struct is_integer_like<cpp_int> : std::true_type {};
+
+    using F = Fraction<cpp_int>;
+
+    cpp_int huge = cpp_int(1);
+    huge <<= 10000;
+
+    check_nothrow(
+        [&] {
+            F a(huge);
+            F b(huge);
+            auto c = a + b;
+            auto d = c * b;
+            (void)d;
+        },
+        "cpp_int arbitrary precision arithmetic"
+    );
+
+#else
+
+    std::cerr
+        << "Boost.Multiprecision unavailable; "
+        << "skipping cpp_int overflow tests\n";
+
+#endif
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 void runTests() {
@@ -416,6 +657,10 @@ void runTests() {
     test_algebraic_identities();
     test_long_long();
     test_edge_cases();
+
+    test_all_signed_integer_overflows();
+    test_int128_overflow();
+    test_boost_multiprecision_no_overflow();
 
     int passed = 0, failed = 0;
     for (const auto& r : g_results) {

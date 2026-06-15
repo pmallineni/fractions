@@ -1,0 +1,11 @@
+# 1. Ignore all files at the root and inside subdirectories
+*
+**/*
+
+# 2. Re-include all directories so Git can scan through them
+!*/
+!**/
+
+# 3. Re-include all files that have a file extension (contain a dot)
+!*.*
+!**/*.*
